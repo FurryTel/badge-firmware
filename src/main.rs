@@ -8,10 +8,11 @@ use embassy_executor::Spawner;
 use embassy_rp::{
     Peri,
     clocks::ClockConfig,
+    gpio,
     i2c::{self, Config},
     spi::{self, ClkPin, CsPin, MosiPin, Spi},
 };
-use embassy_time::Timer;
+use embassy_time::{Duration, Timer};
 use embedded_hal_1::i2c::I2c;
 use {defmt_rtt as _, panic_probe as _};
 
@@ -26,7 +27,17 @@ async fn main(_spawner: Spawner) {
         peripherals.PIN_3,
         peripherals.PIN_2,
     );
+
+    let mut led = gpio::Output::new(peripherals.PIN_25, gpio::Level::Low);
     info!("Hello World!");
+
+    let mut timer = embassy_time::Ticker::every(Duration::from_millis(500));
+    loop {
+        timer.next().await;
+        led.set_high();
+        timer.next().await;
+        led.set_low();
+    }
 }
 
 #[inline(never)]
