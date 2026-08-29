@@ -17,7 +17,9 @@ use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
-    let peripherals = embassy_rp::init(embassy_rp::config::Config::new(ClockConfig::default()));
+    let peripherals = embassy_rp::init(embassy_rp::config::Config::new(ClockConfig::crystal(
+        12_000_000,
+    )));
     lol(
         peripherals.SPI0,
         peripherals.PIN_1,
