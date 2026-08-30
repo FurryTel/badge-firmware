@@ -25,7 +25,7 @@ async fn main(_spawner: Spawner) {
 
     let mut led = gpio::Output::new(peripherals.PIN_25, gpio::Level::Low);
     info!("Hello World!");
-    let mut a0 = Output::new(peripherals.PIN_6, gpio::Level::Low);
+    let a0 = Output::new(peripherals.PIN_6, gpio::Level::Low);
 
     let mut reset = Output::new(peripherals.PIN_7, gpio::Level::Low);
     Timer::after_millis(100).await;
@@ -38,6 +38,7 @@ async fn main(_spawner: Spawner) {
         peripherals.PIN_1,
         peripherals.PIN_3,
         peripherals.PIN_2,
+        a0,
     )
     .await;
 
@@ -64,8 +65,9 @@ async fn lol<T: spi::Instance>(
     cs: Peri<'static, impl CsPin<T>>,
     tx: Peri<'static, impl MosiPin<T>>,
     clk: Peri<'static, impl ClkPin<T>>,
+    mut a0: Output<'static>,
 ) {
-    let _cs = Output::new(cs, gpio::Level::Low);
+    let mut cs = Output::new(cs, gpio::Level::Low);
 
     let mut spi = Spi::new_blocking_txonly(spi, clk, tx, {
         let mut config = spi::Config::default();
@@ -75,16 +77,22 @@ async fn lol<T: spi::Instance>(
 
     spi.blocking_write(&[
         // taken directly from init_LCD() in the datasheet
-        0xA0, 0xAE, 0xC0, 0xA2, 0x2F, 0x26, 0x81, 0x2F, 0xA5, 0xAF,
+        // except                     vreg      contrast
+        //                             v           v
+        0xA0, 0xAE, 0xC0, 0xA2, 0x2F, 0x21, 0x81, 0x20, 0xAF,
     ])
     .unwrap();
 
-    loop {
-        spi.blocking_write(&[0xA6]).unwrap();
-        info!("normal");
-        Timer::after_millis(500).await;
-        spi.blocking_write(&[0xA7]).unwrap();
-        info!("reverse");
-        Timer::after_millis(500).await;
+    spi.blocking_write(&[0xD0, 0x10, 0x00]).unwrap();
+
+    cs.set_high();
+    a0.set_high();
+    cs.set_low();
+
+    for _row in 0..4 {
+        for _two_columns in 0..64 {
+            spi.blocking_write(&[0x55]).unwrap();
+            spi.blocking_write(&[0xAA]).unwrap();
+        }
     }
 }
