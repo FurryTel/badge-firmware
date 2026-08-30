@@ -22,18 +22,24 @@ async fn main(_spawner: Spawner) {
     let peripherals = embassy_rp::init(embassy_rp::config::Config::new(ClockConfig::crystal(
         12_000_000,
     )));
+
+    let mut led = gpio::Output::new(peripherals.PIN_25, gpio::Level::Low);
+    info!("Hello World!");
+
+    let mut a0 = Output::new(peripherals.PIN_6, gpio::Level::Low);
+
+    {
+        let mut reset = Output::new(peripherals.PIN_7, gpio::Level::Low);
+        Timer::after_millis(100).await;
+        reset.set_high();
+    }
+
     lol(
         peripherals.SPI0,
         peripherals.PIN_1,
         peripherals.PIN_3,
         peripherals.PIN_2,
     );
-
-    let mut led = gpio::Output::new(peripherals.PIN_25, gpio::Level::Low);
-    info!("Hello World!");
-
-    let mut a0 = Output::new(peripherals.PIN_6, gpio::Level::Low);
-    let mut reset = Output::new(peripherals.PIN_7, gpio::Level::High);
 
     let mut rng = rand::rngs::SmallRng::from_seed([42; _]);
     let distribution = Uniform::new(1, 500).expect("low < high");
@@ -59,9 +65,17 @@ fn lol<T: spi::Instance>(
     tx: Peri<'static, impl MosiPin<T>>,
     clk: Peri<'static, impl ClkPin<T>>,
 ) {
-    Spi::new_blocking_txonly(spi, clk, tx, {
+    let _cs = Output::new(cs, gpio::Level::Low);
+
+    let mut spi = Spi::new_blocking_txonly(spi, clk, tx, {
         let mut config = spi::Config::default();
         config.frequency = 1_000_000;
         config
     });
+
+    spi.blocking_write(&[
+        // taken directly from init_LCD() in the datasheet
+        0xA0, 0xAE, 0xC0, 0xA2, 0x2F, 0x26, 0x81, 0x2F,
+    ])
+    .unwrap();
 }
