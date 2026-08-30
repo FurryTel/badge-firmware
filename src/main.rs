@@ -8,7 +8,7 @@ use embassy_executor::Spawner;
 use embassy_rp::{
     Peri,
     clocks::ClockConfig,
-    gpio,
+    gpio::{self, Output},
     i2c::{self, Config},
     spi::{self, ClkPin, CsPin, MosiPin, Spi},
 };
@@ -31,6 +31,9 @@ async fn main(_spawner: Spawner) {
 
     let mut led = gpio::Output::new(peripherals.PIN_25, gpio::Level::Low);
     info!("Hello World!");
+
+    let mut a0 = Output::new(peripherals.PIN_6, gpio::Level::Low);
+    let mut reset = Output::new(peripherals.PIN_7, gpio::Level::High);
 
     let mut rng = rand::rngs::SmallRng::from_seed([42; _]);
     let distribution = Uniform::new(1, 500).expect("low < high");
