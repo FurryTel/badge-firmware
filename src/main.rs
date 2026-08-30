@@ -77,20 +77,21 @@ async fn lol<T: spi::Instance>(
 
     spi.blocking_write(&[
         // taken directly from init_LCD() in the datasheet
-        // except                     vreg      contrast
-        //                             v           v
-        0xA0, 0xAE, 0xC0, 0xA2, 0x2F, 0x21, 0x81, 0x20, 0xAF,
+        // except
+        // seg-direction              vreg      contrast
+        // v                           v           v
+        0xA1, 0xAE, 0xC0, 0xA2, 0x2F, 0x21, 0x81, 0x20, 0xAF,
     ])
     .unwrap();
 
     for row in 0..4 {
         a0.set_low();
-        spi.blocking_write(&[0xB0 + row, 0x10, 0x00]).unwrap();
+        spi.blocking_write(&[0xB0 + row, 0x10, 0x04]).unwrap();
 
         a0.set_high();
-        for _two_columns in 0..64 {
-            spi.blocking_write(&[0x55 ^ row]).unwrap();
-            spi.blocking_write(&[0xAA ^ row]).unwrap();
+        for column in 0..127 {
+            spi.blocking_write(&[column]).unwrap();
         }
+        spi.blocking_write(&[row]).unwrap();
     }
 }
