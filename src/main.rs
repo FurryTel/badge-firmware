@@ -14,6 +14,7 @@ use embassy_rp::{
 };
 use embassy_time::{Duration, Timer};
 use embedded_hal_1::i2c::I2c;
+use rand::{RngExt, SeedableRng, distr::Uniform};
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
@@ -31,11 +32,19 @@ async fn main(_spawner: Spawner) {
     let mut led = gpio::Output::new(peripherals.PIN_25, gpio::Level::Low);
     info!("Hello World!");
 
-    let mut timer = embassy_time::Ticker::every(Duration::from_millis(500));
+    let mut rng = rand::rngs::SmallRng::from_seed([42; _]);
+    let distribution = Uniform::new(1, 500).expect("low < high");
+    let mut wait = || {
+        let ms = rng.sample(distribution);
+        async move {
+            Timer::after(Duration::from_millis(ms)).await;
+        }
+    };
+
     loop {
-        timer.next().await;
+        wait().await;
         led.set_high();
-        timer.next().await;
+        wait().await;
         led.set_low();
     }
 }
