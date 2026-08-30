@@ -83,16 +83,14 @@ async fn lol<T: spi::Instance>(
     ])
     .unwrap();
 
-    spi.blocking_write(&[0xD0, 0x10, 0x00]).unwrap();
+    for row in 0..4 {
+        a0.set_low();
+        spi.blocking_write(&[0xB0 + row, 0x10, 0x00]).unwrap();
 
-    cs.set_high();
-    a0.set_high();
-    cs.set_low();
-
-    for _row in 0..4 {
+        a0.set_high();
         for _two_columns in 0..64 {
-            spi.blocking_write(&[0x55]).unwrap();
-            spi.blocking_write(&[0xAA]).unwrap();
+            spi.blocking_write(&[0x55 ^ row]).unwrap();
+            spi.blocking_write(&[0xAA ^ row]).unwrap();
         }
     }
 }
