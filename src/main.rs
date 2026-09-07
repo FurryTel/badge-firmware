@@ -35,7 +35,7 @@ async fn main(_spawner: Spawner) {
     info!("Hello World!");
     let a0 = Output::new(peripherals.PIN_6, gpio::Level::Low);
 
-    let reset = Output::new(peripherals.PIN_7, gpio::Level::Low);
+    let mut reset = Output::new(peripherals.PIN_7, gpio::Level::Low);
 
     info!("Done with reset.");
 
@@ -45,7 +45,7 @@ async fn main(_spawner: Spawner) {
         peripherals.PIN_3,
         peripherals.PIN_2,
         a0,
-        reset,
+        &mut reset,
     )
     .await;
 
@@ -99,7 +99,7 @@ async fn lol<T: spi::Instance>(
     tx: Peri<'static, impl MosiPin<T>>,
     clk: Peri<'static, impl ClkPin<T>>,
     a0: Output<'static>,
-    mut rst: Output<'static>,
+    rst: &mut Output<'static>,
 ) {
     let mut cs = Output::new(cs, gpio::Level::Low);
 
@@ -113,7 +113,7 @@ async fn lol<T: spi::Instance>(
     let spi = display_interface_spi::SPIInterface::new(spi, a0);
     let mut display = st7565::ST7565::new(spi, BadgeDisplay);
 
-    display.reset(&mut rst, &mut embassy_time::Delay).unwrap();
+    display.reset(rst, &mut embassy_time::Delay).unwrap();
     let mut buffer = GraphicsPageBuffer::new();
     let mut display = display.into_graphics_mode(&mut buffer);
 
