@@ -33,7 +33,7 @@ async fn main(_spawner: Spawner) {
 
     let mut led = gpio::Output::new(peripherals.PIN_25, gpio::Level::Low);
     info!("Hello World!");
-    let a0 = Output::new(peripherals.PIN_6, gpio::Level::Low);
+    let a0 = Output::new(peripherals.PIN_5, gpio::Level::Low);
 
     let mut reset = Output::new(peripherals.PIN_7, gpio::Level::Low);
 
