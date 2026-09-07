@@ -127,4 +127,6 @@ async fn lol<T: spi::Instance>(
     )
     .draw(&mut display);
     display.flush().unwrap();
+
+    display.set_display_on(true).unwrap();
 }
