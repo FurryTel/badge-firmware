@@ -11,6 +11,7 @@ use embassy_rp::{
     clocks::ClockConfig,
     gpio::{self, Output},
     i2c::{self, Config},
+    pwm::{self, Pwm},
     spi::{self, ClkPin, CsPin, MosiPin, Spi},
 };
 use embassy_time::{Delay, Duration, Timer};
@@ -48,6 +49,71 @@ async fn main(_spawner: Spawner) {
         &mut reset,
     )
     .await;
+
+    let pwm_config = {
+        let mut config = pwm::Config::default();
+        config.invert_a = true;
+        config.enable = true;
+        config.compare_a = 0;
+        config.top = 256;
+        config
+    };
+    let mut red = Pwm::new_output_a(
+        peripherals.PWM_SLICE2,
+        peripherals.PIN_4,
+        pwm_config.clone(),
+    );
+    let mut green = Pwm::new_output_a(
+        peripherals.PWM_SLICE3,
+        peripherals.PIN_6,
+        pwm_config.clone(),
+    );
+    let mut blue = Pwm::new_output_a(
+        peripherals.PWM_SLICE4,
+        peripherals.PIN_8,
+        pwm_config.clone(),
+    );
+
+    let mut hue = 0.0_f32;
+    let mut frame = embassy_time::Ticker::every(Duration::from_hz(60));
+    loop {
+        frame.next().await;
+
+        hue += 1.0 / 256.0;
+        if hue > 1.0 {
+            hue -= 1.0;
+        }
+        defmt::assert!(0.0 <= hue && hue <= 1.0);
+
+        // Taken from the Wikipedia article on HSL and HSV, likely with transcription errors.
+        let c = 1.0_f32;
+        let h_prime = hue * 6.0;
+        let x = 1.0 - ((h_prime % 2.0) - 1.0).abs();
+        let (r, g, b) = if h_prime < 1.0 {
+            (c, x, 0.0)
+        } else if h_prime < 2.0 {
+            (x, c, 0.0)
+        } else if h_prime < 3.0 {
+            (0.0, c, x)
+        } else if h_prime < 4.0 {
+            (0.0, x, c)
+        } else if h_prime < 5.0 {
+            (x, 0.0, c)
+        } else {
+            (c, 0.0, x)
+        };
+
+
+        let mut config = pwm_config.clone();
+        config.compare_a = (r * 256.0) as u16;
+        red.set_config(&config);
+
+        config.compare_a = (g * 256.0) as u16;
+        green.set_config(&config);
+
+        config.compare_a = (b * 256.0) as u16;
+        blue.set_config(&config);
+    }
 
     let mut rng = rand::rngs::SmallRng::from_seed([42; _]);
     let distribution = Uniform::new(1, 500).expect("low < high");
