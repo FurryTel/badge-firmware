@@ -69,7 +69,7 @@ async fn main(_spawner: Spawner) {
 struct BadgeDisplay;
 
 impl st7565::DisplaySpecs<128, 32, 4> for BadgeDisplay {
-    const FLIP_ROWS: bool = true;
+    const FLIP_ROWS: bool = false;
 
     const FLIP_COLUMNS: bool = true;
 
@@ -119,11 +119,14 @@ async fn lol<T: spi::Instance>(
 
     let character_style = mono_font::MonoTextStyleBuilder::new()
         .font(&embedded_vintage_fonts::FONT_8X16)
+        .background_color(embedded_graphics::pixelcolor::BinaryColor::Off)
+        .text_color(embedded_graphics::pixelcolor::BinaryColor::On)
         .build();
-    Text::new(
+    Text::with_baseline(
         "C:\\> cd spot\nC:\\spot> run",
         Point { x: 0, y: 0 },
         character_style,
+        text::Baseline::Top,
     )
     .draw(&mut display);
     display.flush().unwrap();
