@@ -186,8 +186,8 @@ async fn lol<T: spi::Instance>(
 
     let character_style = mono_font::MonoTextStyleBuilder::new()
         .font(&embedded_vintage_fonts::FONT_8X16)
-        .background_color(embedded_graphics::pixelcolor::BinaryColor::Off)
-        .text_color(embedded_graphics::pixelcolor::BinaryColor::On)
+        .background_color(BinaryColor::Off)
+        .text_color(BinaryColor::On)
         .build();
     Text::with_baseline(
         "C:\\> cd spot\nC:\\spot> run",
