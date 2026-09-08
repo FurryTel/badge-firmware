@@ -17,8 +17,10 @@ use embassy_rp::{
 use embassy_time::{Delay, Duration, Timer};
 use embedded_graphics::{
     Drawable,
-    geometry::Point,
+    geometry::{Point, Size},
     mono_font,
+    pixelcolor::BinaryColor,
+    primitives::{PrimitiveStyleBuilder, Rectangle, StyledDrawable},
     text::{self, Text, renderer},
 };
 use embedded_hal_1::i2c::I2c;
@@ -102,7 +104,6 @@ async fn main(_spawner: Spawner) {
         } else {
             (c, 0.0, x)
         };
-
 
         let mut config = pwm_config.clone();
         config.compare_a = (r * 256.0) as u16;
@@ -195,6 +196,20 @@ async fn lol<T: spi::Instance>(
         text::Baseline::Top,
     )
     .draw(&mut display);
+
+    let box_style = PrimitiveStyleBuilder::new()
+        .stroke_color(BinaryColor::On)
+        .stroke_width(2)
+        .build();
+    Rectangle::new(
+        Point { x: 35, y: 2 },
+        Size {
+            width: 12,
+            height: 7,
+        },
+    )
+    .draw_styled(&box_style, &mut display);
+
     display.flush().unwrap();
 
     display.set_display_on(true).unwrap();
