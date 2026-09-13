@@ -26,12 +26,12 @@ use st7565::GraphicsPageBuffer;
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     let peripherals = embassy_rp::init(embassy_rp::config::Config::new(ClockConfig::crystal(
         12_000_000,
     )));
 
-    let mut led = gpio::Output::new(peripherals.PIN_25, gpio::Level::Low);
+    spawner.spawn(led(Output::new(peripherals.PIN_25, gpio::Level::Low)).unwrap());
     info!("Hello World!");
     let a0 = Output::new(peripherals.PIN_5, gpio::Level::Low);
 
@@ -112,7 +112,10 @@ async fn main(_spawner: Spawner) {
         config.compare_a = (b * 256.0) as u16;
         blue.set_config(&config);
     }
+}
 
+#[embassy_executor::task]
+async fn led(mut led: Output<'static>) {
     let mut rng = rand::rngs::SmallRng::from_seed([42; _]);
     let distribution = Uniform::new(1, 500).expect("low < high");
     let mut wait = || {
