@@ -3,27 +3,24 @@
 #![no_std]
 #![no_main]
 
-use cortex_m::asm::wfi;
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::{
     Peri,
     clocks::ClockConfig,
     gpio::{self, Output},
-    i2c::{self, Config},
     pwm::{self, Pwm},
     spi::{self, ClkPin, CsPin, MosiPin, Spi},
 };
-use embassy_time::{Delay, Duration, Timer};
+use embassy_time::{Duration, Timer};
 use embedded_graphics::{
     Drawable,
     geometry::{Point, Size},
     mono_font,
     pixelcolor::BinaryColor,
     primitives::{PrimitiveStyleBuilder, Rectangle, StyledDrawable},
-    text::{self, Text, renderer},
+    text::{self, Text},
 };
-use embedded_hal_1::i2c::I2c;
 use rand::{RngExt, SeedableRng, distr::Uniform};
 use st7565::GraphicsPageBuffer;
 use {defmt_rtt as _, panic_probe as _};
