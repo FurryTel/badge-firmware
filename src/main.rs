@@ -168,7 +168,7 @@ async fn lol<T: spi::Instance>(
     a0: Output<'static>,
     rst: &mut Output<'static>,
 ) {
-    let mut cs = Output::new(cs, gpio::Level::Low);
+    let cs = Output::new(cs, gpio::Level::Low);
 
     let spi = Spi::new_blocking_txonly(spi, clk, tx, {
         let mut config = spi::Config::default();
