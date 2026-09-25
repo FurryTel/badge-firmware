@@ -136,9 +136,9 @@ async fn led(mut led: Output<'static>) {
 struct BadgeDisplay;
 
 impl st7565::DisplaySpecs<128, 32, 4> for BadgeDisplay {
-    const FLIP_ROWS: bool = false;
+    const FLIP_ROWS: bool = true;
 
-    const FLIP_COLUMNS: bool = true;
+    const FLIP_COLUMNS: bool = false;
 
     const INVERTED: bool = false;
 
@@ -156,7 +156,7 @@ impl st7565::DisplaySpecs<128, 32, 4> for BadgeDisplay {
 
     const BOOSTER_RATIO: st7565::types::BoosterRatio = st7565::types::BoosterRatio::StepUp2x3x4x;
 
-    const COLUMN_OFFSET: u8 = 4;
+    const COLUMN_OFFSET: u8 = 0;
 }
 
 #[inline(never)]
