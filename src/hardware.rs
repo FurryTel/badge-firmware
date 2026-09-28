@@ -1,6 +1,6 @@
 use embassy_rp::{
     Peri,
-    gpio::{self, Output},
+    gpio::{self, Input, Output},
     peripherals,
     spi::{self, Spi},
 };
@@ -13,6 +13,12 @@ pub type DisplayClk = peripherals::PIN_2;
 pub type DisplayA0 = peripherals::PIN_5;
 pub type DisplayReset = peripherals::PIN_7;
 pub type DisplaySPI = peripherals::SPI0;
+
+pub type ButtonUp = peripherals::PIN_13;
+pub type ButtonLeft = peripherals::PIN_12;
+pub type ButtonCenter = peripherals::PIN_11;
+pub type ButtonRight = peripherals::PIN_10;
+pub type ButtonDown = peripherals::PIN_9;
 
 pub struct BadgeDisplay;
 
@@ -93,4 +99,30 @@ pub fn init_display(
         BUFFER.init_with(GraphicsPageBuffer::new)
     };
     return display.into_graphics_mode(buffer);
+}
+
+pub struct Buttons {
+    pub up: crate::debounce::Button,
+    pub left: crate::debounce::Button,
+    pub center: crate::debounce::Button,
+    pub right: crate::debounce::Button,
+    pub down: crate::debounce::Button,
+}
+
+impl Buttons {
+    pub fn new(
+        up: Peri<'static, ButtonUp>,
+        left: Peri<'static, ButtonLeft>,
+        center: Peri<'static, ButtonCenter>,
+        right: Peri<'static, ButtonRight>,
+        down: Peri<'static, ButtonDown>,
+    ) -> Buttons {
+        Self {
+            up: crate::debounce::Button::new(Input::new(up, gpio::Pull::Up)),
+            left: crate::debounce::Button::new(Input::new(left, gpio::Pull::Up)),
+            center: crate::debounce::Button::new(Input::new(center, gpio::Pull::Up)),
+            right: crate::debounce::Button::new(Input::new(right, gpio::Pull::Up)),
+            down: crate::debounce::Button::new(Input::new(down, gpio::Pull::Up)),
+        }
+    }
 }

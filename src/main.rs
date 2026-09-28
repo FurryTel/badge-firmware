@@ -3,10 +3,15 @@
 #![no_std]
 #![no_main]
 
+mod debounce;
 mod hardware;
 
+use core::fmt::Write as _;
+
+use crate::hardware::Buttons;
 use defmt::*;
 use embassy_executor::Spawner;
+use embassy_futures::select::{Either5, select5};
 use embassy_rp::{
     clocks::ClockConfig,
     gpio::{self, Output},
@@ -15,13 +20,13 @@ use embassy_rp::{
 use embassy_time::{Duration, Timer};
 use embedded_graphics::{
     Drawable,
-    geometry::{Point, Size},
+    geometry::Point,
     mono_font,
     pixelcolor::BinaryColor,
-    primitives::{PrimitiveStyleBuilder, Rectangle, StyledDrawable},
-    text::{self, Text},
+    text::{self, Text, TextStyleBuilder},
 };
 use rand::{RngExt, SeedableRng, distr::Uniform};
+
 use {defmt_rtt as _, panic_probe as _};
 
 #[embassy_executor::main]
@@ -34,14 +39,23 @@ async fn main(spawner: Spawner) {
     info!("Hello World!");
 
     spawner.spawn(
-        display(hardware::init_display(
-            peripherals.SPI0,
-            peripherals.PIN_1,
-            peripherals.PIN_3,
-            peripherals.PIN_2,
-            peripherals.PIN_5,
-            peripherals.PIN_7,
-        ))
+        display(
+            hardware::init_display(
+                peripherals.SPI0,
+                peripherals.PIN_1,
+                peripherals.PIN_3,
+                peripherals.PIN_2,
+                peripherals.PIN_5,
+                peripherals.PIN_7,
+            ),
+            Buttons::new(
+                peripherals.PIN_13,
+                peripherals.PIN_12,
+                peripherals.PIN_11,
+                peripherals.PIN_10,
+                peripherals.PIN_9,
+            ),
+        )
         .unwrap(),
     );
 
@@ -130,36 +144,69 @@ async fn led(mut led: Output<'static>) {
 }
 
 #[embassy_executor::task]
-async fn display(mut display: hardware::DrawTarget) {
+async fn display(mut display: hardware::DrawTarget, mut buttons: Buttons) {
+    display.set_display_on(true).unwrap();
+
     let character_style = mono_font::MonoTextStyleBuilder::new()
-        .font(&embedded_vintage_fonts::FONT_8X16)
+        .font(&embedded_vintage_fonts::FONT_6X8)
         .background_color(BinaryColor::Off)
         .text_color(BinaryColor::On)
         .build();
-    Text::with_baseline(
-        "C:\\> cd spot\nC:\\spot> run",
-        Point { x: 0, y: 0 },
-        character_style,
-        text::Baseline::Top,
-    )
-    .draw(&mut display);
-
-    let box_style = PrimitiveStyleBuilder::new()
-        .stroke_color(BinaryColor::On)
-        .stroke_width(2)
+    let text_style = TextStyleBuilder::new()
+        .alignment(text::Alignment::Left)
+        .baseline(text::Baseline::Top)
         .build();
-    Rectangle::new(
-        Point { x: 35, y: 2 },
-        Size {
-            width: 12,
-            height: 7,
-        },
-    )
-    .draw_styled(&box_style, &mut display);
 
-    display.flush().unwrap();
+    let mut up = 0;
+    let mut left = 0;
+    let mut center = 0;
+    let mut right = 0;
+    let mut down = 0;
 
-    display.set_display_on(true).unwrap();
+    let draw = |display: &mut hardware::DrawTarget, x, y, i| {
+        let mut buffer = heapless::Vec::<u8, 5>::new();
+        core::write!(&mut buffer, "{}", i).unwrap();
+        Text::with_text_style(
+            unsafe { str::from_utf8_unchecked(&buffer) },
+            Point { x, y },
+            character_style,
+            text_style,
+        )
+        .draw(display);
+    };
 
-    core::future::pending::<()>().await;
+    loop {
+        draw(&mut display, 60, 0, up);
+        draw(&mut display, 0, 8, left);
+        draw(&mut display, 60, 8, center);
+        draw(&mut display, 100, 8, right);
+        draw(&mut display, 60, 16, down);
+        display.flush().unwrap();
+
+        match select5(
+            buttons.up.wait_for_pressed(),
+            buttons.left.wait_for_pressed(),
+            buttons.center.wait_for_pressed(),
+            buttons.right.wait_for_pressed(),
+            buttons.down.wait_for_pressed(),
+        )
+        .await
+        {
+            Either5::First(_) => {
+                up += 1;
+            }
+            Either5::Second(_) => {
+                left += 1;
+            }
+            Either5::Third(_) => {
+                center += 1;
+            }
+            Either5::Fourth(_) => {
+                right += 1;
+            }
+            Either5::Fifth(_) => {
+                down += 1;
+            }
+        }
+    }
 }
