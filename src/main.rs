@@ -33,15 +33,17 @@ async fn main(spawner: Spawner) {
     spawner.spawn(led(Output::new(peripherals.PIN_25, gpio::Level::Low)).unwrap());
     info!("Hello World!");
 
-    lol(hardware::init_display(
-        peripherals.SPI0,
-        peripherals.PIN_1,
-        peripherals.PIN_3,
-        peripherals.PIN_2,
-        peripherals.PIN_5,
-        peripherals.PIN_7,
-    ))
-    .await;
+    spawner.spawn(
+        display(hardware::init_display(
+            peripherals.SPI0,
+            peripherals.PIN_1,
+            peripherals.PIN_3,
+            peripherals.PIN_2,
+            peripherals.PIN_5,
+            peripherals.PIN_7,
+        ))
+        .unwrap(),
+    );
 
     let pwm_config = {
         let mut config = pwm::Config::default();
@@ -127,8 +129,8 @@ async fn led(mut led: Output<'static>) {
     }
 }
 
-#[inline(never)]
-async fn lol(mut display: hardware::DrawTarget) {
+#[embassy_executor::task]
+async fn display(mut display: hardware::DrawTarget) {
     let character_style = mono_font::MonoTextStyleBuilder::new()
         .font(&embedded_vintage_fonts::FONT_8X16)
         .background_color(BinaryColor::Off)
@@ -158,4 +160,6 @@ async fn lol(mut display: hardware::DrawTarget) {
     display.flush().unwrap();
 
     display.set_display_on(true).unwrap();
+
+    core::future::pending::<()>().await;
 }
