@@ -136,12 +136,8 @@ async fn main(spawner: Spawner) {
     .unwrap();
 
     let led_config = {
-        let mut config = pwm::Config::default();
+        let mut config = backlight_config.clone();
         config.invert_a = false;
-        config.enable = true;
-        config.compare_a = 0;
-        config.compare_b = 0;
-        config.top = 256;
         config
     };
 
