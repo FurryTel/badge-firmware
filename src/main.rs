@@ -30,21 +30,44 @@ use rand::{RngExt, SeedableRng, distr::Uniform};
 
 use {defmt_rtt as _, panic_probe as _};
 
+trait Steppable {
+    fn inc(&mut self);
+    fn dec(&mut self);
+}
+
+#[derive(Default, Clone, Copy)]
+struct Value<const STEP: u8> {
+    value: u8,
+}
+
+impl<const STEP: u8> Steppable for Value<STEP> {
+    fn inc(&mut self) {
+        if self.value <= (u8::MAX - STEP) {
+            self.value += STEP;
+        }
+    }
+
+    fn dec(&mut self) {
+        if self.value >= STEP {
+            self.value -= STEP;
+        }
+    }
+}
+
 #[derive(Default, Clone, Copy)]
 struct UiState {
     highlighted: u8,
-    data: [[u8; 3]; 2],
+    data: ([Value<0x11>; 3], [Value<1>; 3]),
 }
 
 impl UiState {
-    fn at_highlighted(&self) -> u8 {
+    fn at_highlighted_mut(&mut self) -> &mut dyn Steppable {
         defmt::assert!(self.highlighted < 6);
-        self.data[self.highlighted as usize / 3][self.highlighted as usize % 3]
-    }
-
-    fn at_highlighted_mut(&mut self) -> &mut u8 {
-        defmt::assert!(self.highlighted < 6);
-        &mut self.data[self.highlighted as usize / 3][self.highlighted as usize % 3]
+        if self.highlighted < 3 {
+            &mut self.data.0[self.highlighted as usize]
+        } else {
+            &mut self.data.1[self.highlighted as usize % 3]
+        }
     }
 }
 
@@ -152,14 +175,10 @@ async fn main(spawner: Spawner) {
         .await
         {
             Either4::First(_) => {
-                if ui_state.at_highlighted() <= 0xEE {
-                    *ui_state.at_highlighted_mut() += 0x11;
-                }
+                ui_state.at_highlighted_mut().inc();
             }
             Either4::Second(_) => {
-                if ui_state.at_highlighted() >= 0x11 {
-                    *ui_state.at_highlighted_mut() -= 0x11;
-                }
+                ui_state.at_highlighted_mut().dec();
             }
             Either4::Third(_) => {
                 ui_state.highlighted -= 1;
@@ -171,13 +190,13 @@ async fn main(spawner: Spawner) {
             }
         }
 
-        let [[r, g, b], [dt, dm, db]] = ui_state.data;
-        backlight_red.set_duty_cycle(r.into()).unwrap();
-        backlight_green.set_duty_cycle(g.into()).unwrap();
-        backlight_blue.set_duty_cycle(b.into()).unwrap();
-        led_top.set_duty_cycle(dt.into()).unwrap();
-        led_middle.set_duty_cycle(dm.into()).unwrap();
-        led_bottom.set_duty_cycle(db.into()).unwrap();
+        let ([r, g, b], [dt, dm, db]) = ui_state.data;
+        backlight_red.set_duty_cycle(r.value.into()).unwrap();
+        backlight_green.set_duty_cycle(g.value.into()).unwrap();
+        backlight_blue.set_duty_cycle(b.value.into()).unwrap();
+        led_top.set_duty_cycle(dt.value.into()).unwrap();
+        led_middle.set_duty_cycle(dm.value.into()).unwrap();
+        led_bottom.set_duty_cycle(db.value.into()).unwrap();
 
         UI_STATE.signal(ui_state);
     }
@@ -242,13 +261,13 @@ async fn display(mut display: hardware::DrawTarget) {
     loop {
         let state = UI_STATE.wait().await;
 
-        let [[r, g, b], [dt, dm, db]] = state.data;
-        draw(&mut display, state.highlighted == 0, 64, 0, r);
-        draw(&mut display, state.highlighted == 1, 80, 0, g);
-        draw(&mut display, state.highlighted == 2, 96, 0, b);
-        draw(&mut display, state.highlighted == 3, 64, 15, dt);
-        draw(&mut display, state.highlighted == 4, 80, 15, dm);
-        draw(&mut display, state.highlighted == 5, 96, 15, db);
+        let ([r, g, b], [dt, dm, db]) = state.data;
+        draw(&mut display, state.highlighted == 0, 64, 0, r.value);
+        draw(&mut display, state.highlighted == 1, 80, 0, g.value);
+        draw(&mut display, state.highlighted == 2, 96, 0, b.value);
+        draw(&mut display, state.highlighted == 3, 64, 15, dt.value);
+        draw(&mut display, state.highlighted == 4, 80, 15, dm.value);
+        draw(&mut display, state.highlighted == 5, 96, 15, db.value);
         display.flush().unwrap();
     }
 }
