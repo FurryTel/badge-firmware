@@ -108,6 +108,7 @@ async fn main(spawner: Spawner) {
         config.enable = true;
         config.compare_a = 0;
         config.top = 256;
+        config.divider = 28.into();
         config
     };
     let mut backlight_red = Pwm::new_output_a(
