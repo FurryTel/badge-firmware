@@ -11,12 +11,13 @@ use core::fmt::Write as _;
 use crate::hardware::Buttons;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_futures::select::{Either5, select5};
+use embassy_futures::select::{Either4, select4};
 use embassy_rp::{
     clocks::ClockConfig,
     gpio::{self, Output},
-    pwm::{self, Pwm},
+    pwm::{self, Pwm, SetDutyCycle},
 };
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
 use embedded_graphics::{
     Drawable,
@@ -29,6 +30,26 @@ use rand::{RngExt, SeedableRng, distr::Uniform};
 
 use {defmt_rtt as _, panic_probe as _};
 
+#[derive(Default, Clone, Copy)]
+struct UiState {
+    highlighted: u8,
+    data: [[u8; 3]; 2],
+}
+
+impl UiState {
+    fn at_highlighted(&self) -> u8 {
+        defmt::assert!(self.highlighted < 6);
+        self.data[self.highlighted as usize / 3][self.highlighted as usize % 3]
+    }
+
+    fn at_highlighted_mut(&mut self) -> &mut u8 {
+        defmt::assert!(self.highlighted < 6);
+        &mut self.data[self.highlighted as usize / 3][self.highlighted as usize % 3]
+    }
+}
+
+static UI_STATE: Signal<ThreadModeRawMutex, UiState> = Signal::new();
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let peripherals = embassy_rp::init(embassy_rp::config::Config::new(ClockConfig::crystal(
@@ -39,27 +60,26 @@ async fn main(spawner: Spawner) {
     info!("Hello World!");
 
     spawner.spawn(
-        display(
-            hardware::init_display(
-                peripherals.SPI0,
-                peripherals.PIN_1,
-                peripherals.PIN_3,
-                peripherals.PIN_2,
-                peripherals.PIN_5,
-                peripherals.PIN_7,
-            ),
-            Buttons::new(
-                peripherals.PIN_13,
-                peripherals.PIN_12,
-                peripherals.PIN_11,
-                peripherals.PIN_10,
-                peripherals.PIN_9,
-            ),
-        )
+        display(hardware::init_display(
+            peripherals.SPI0,
+            peripherals.PIN_1,
+            peripherals.PIN_3,
+            peripherals.PIN_2,
+            peripherals.PIN_5,
+            peripherals.PIN_7,
+        ))
         .unwrap(),
     );
 
-    let pwm_config = {
+    let mut buttons = Buttons::new(
+        peripherals.PIN_13,
+        peripherals.PIN_12,
+        peripherals.PIN_11,
+        peripherals.PIN_10,
+        peripherals.PIN_9,
+    );
+
+    let backlight_config = {
         let mut config = pwm::Config::default();
         config.invert_a = true;
         config.enable = true;
@@ -67,60 +87,99 @@ async fn main(spawner: Spawner) {
         config.top = 256;
         config
     };
-    let mut red = Pwm::new_output_a(
+    let mut backlight_red = Pwm::new_output_a(
         peripherals.PWM_SLICE2,
         peripherals.PIN_4,
-        pwm_config.clone(),
-    );
-    let mut green = Pwm::new_output_a(
+        backlight_config.clone(),
+    )
+    .split()
+    .0
+    .unwrap();
+    let mut backlight_green = Pwm::new_output_a(
         peripherals.PWM_SLICE3,
         peripherals.PIN_6,
-        pwm_config.clone(),
-    );
-    let mut blue = Pwm::new_output_a(
+        backlight_config.clone(),
+    )
+    .split()
+    .0
+    .unwrap();
+    let mut backlight_blue = Pwm::new_output_a(
         peripherals.PWM_SLICE4,
         peripherals.PIN_8,
-        pwm_config.clone(),
-    );
+        backlight_config.clone(),
+    )
+    .split()
+    .0
+    .unwrap();
 
-    let mut hue = 0.0_f32;
-    let mut frame = embassy_time::Ticker::every(Duration::from_hz(60));
+    let led_config = {
+        let mut config = pwm::Config::default();
+        config.invert_a = false;
+        config.enable = true;
+        config.compare_a = 0;
+        config.compare_b = 0;
+        config.top = 256;
+        config
+    };
+
+    let (mut led_bottom, mut led_middle) = {
+        let (a, b) = Pwm::new_output_ab(
+            peripherals.PWM_SLICE0,
+            peripherals.PIN_16,
+            peripherals.PIN_17,
+            led_config.clone(),
+        )
+        .split();
+        (a.unwrap(), b.unwrap())
+    };
+    let mut led_top = {
+        Pwm::new_output_a(peripherals.PWM_SLICE1, peripherals.PIN_18, led_config)
+            .split()
+            .0
+            .unwrap()
+    };
+
+    let mut ui_state = UiState::default();
+    UI_STATE.signal(ui_state);
+
     loop {
-        frame.next().await;
-
-        hue += 1.0 / 256.0;
-        if hue > 1.0 {
-            hue -= 1.0;
+        match select4(
+            buttons.up.wait_for_pressed(),
+            buttons.down.wait_for_pressed(),
+            buttons.left.wait_for_pressed(),
+            buttons.right.wait_for_pressed(),
+        )
+        .await
+        {
+            Either4::First(_) => {
+                if ui_state.at_highlighted() <= 0xEE {
+                    *ui_state.at_highlighted_mut() += 0x11;
+                }
+            }
+            Either4::Second(_) => {
+                if ui_state.at_highlighted() >= 0x11 {
+                    *ui_state.at_highlighted_mut() -= 0x11;
+                }
+            }
+            Either4::Third(_) => {
+                ui_state.highlighted -= 1;
+                ui_state.highlighted %= 6;
+            }
+            Either4::Fourth(_) => {
+                ui_state.highlighted += 1;
+                ui_state.highlighted %= 6;
+            }
         }
-        defmt::assert!(0.0 <= hue && hue <= 1.0);
 
-        // Taken from the Wikipedia article on HSL and HSV, likely with transcription errors.
-        let c = 1.0_f32;
-        let h_prime = hue * 6.0;
-        let x = 1.0 - ((h_prime % 2.0) - 1.0).abs();
-        let (r, g, b) = if h_prime < 1.0 {
-            (c, x, 0.0)
-        } else if h_prime < 2.0 {
-            (x, c, 0.0)
-        } else if h_prime < 3.0 {
-            (0.0, c, x)
-        } else if h_prime < 4.0 {
-            (0.0, x, c)
-        } else if h_prime < 5.0 {
-            (x, 0.0, c)
-        } else {
-            (c, 0.0, x)
-        };
+        let [[r, g, b], [dt, dm, db]] = ui_state.data;
+        backlight_red.set_duty_cycle(r.into()).unwrap();
+        backlight_green.set_duty_cycle(g.into()).unwrap();
+        backlight_blue.set_duty_cycle(b.into()).unwrap();
+        led_top.set_duty_cycle(dt.into()).unwrap();
+        led_middle.set_duty_cycle(dm.into()).unwrap();
+        led_bottom.set_duty_cycle(db.into()).unwrap();
 
-        let mut config = pwm_config.clone();
-        config.compare_a = (r * 256.0) as u16;
-        red.set_config(&config);
-
-        config.compare_a = (g * 256.0) as u16;
-        green.set_config(&config);
-
-        config.compare_a = (b * 256.0) as u16;
-        blue.set_config(&config);
+        UI_STATE.signal(ui_state);
     }
 }
 
@@ -144,69 +203,52 @@ async fn led(mut led: Output<'static>) {
 }
 
 #[embassy_executor::task]
-async fn display(mut display: hardware::DrawTarget, mut buttons: Buttons) {
+async fn display(mut display: hardware::DrawTarget) {
     display.set_display_on(true).unwrap();
 
-    let character_style = mono_font::MonoTextStyleBuilder::new()
-        .font(&embedded_vintage_fonts::FONT_6X8)
+    let regular = mono_font::MonoTextStyleBuilder::new()
+        .font(&embedded_graphics::mono_font::ascii::FONT_6X13)
         .background_color(BinaryColor::Off)
-        .text_color(BinaryColor::On)
+        .text_color(BinaryColor::On);
+    let inverted = regular
+        .clone()
+        .background_color(BinaryColor::On)
+        .text_color(BinaryColor::Off)
         .build();
+    let regular = regular.build();
     let text_style = TextStyleBuilder::new()
         .alignment(text::Alignment::Left)
         .baseline(text::Baseline::Top)
         .build();
 
-    let mut up = 0;
-    let mut left = 0;
-    let mut center = 0;
-    let mut right = 0;
-    let mut down = 0;
+    Text::with_text_style("Backlight:", Point { x: 0, y: 0 }, regular, text_style)
+        .draw(&mut display);
+    Text::with_text_style("Discrete:", Point { x: 6, y: 15 }, regular, text_style)
+        .draw(&mut display);
+    display.flush().unwrap();
 
-    let draw = |display: &mut hardware::DrawTarget, x, y, i| {
+    let draw = |display: &mut hardware::DrawTarget, is_inverted: bool, x, y, i| {
         let mut buffer = heapless::Vec::<u8, 5>::new();
-        core::write!(&mut buffer, "{}", i).unwrap();
+        core::write!(&mut buffer, "{:02x}", i).unwrap();
         Text::with_text_style(
             unsafe { str::from_utf8_unchecked(&buffer) },
             Point { x, y },
-            character_style,
+            if is_inverted { inverted } else { regular },
             text_style,
         )
         .draw(display);
     };
 
     loop {
-        draw(&mut display, 60, 0, up);
-        draw(&mut display, 0, 8, left);
-        draw(&mut display, 60, 8, center);
-        draw(&mut display, 100, 8, right);
-        draw(&mut display, 60, 16, down);
-        display.flush().unwrap();
+        let state = UI_STATE.wait().await;
 
-        match select5(
-            buttons.up.wait_for_pressed(),
-            buttons.left.wait_for_pressed(),
-            buttons.center.wait_for_pressed(),
-            buttons.right.wait_for_pressed(),
-            buttons.down.wait_for_pressed(),
-        )
-        .await
-        {
-            Either5::First(_) => {
-                up += 1;
-            }
-            Either5::Second(_) => {
-                left += 1;
-            }
-            Either5::Third(_) => {
-                center += 1;
-            }
-            Either5::Fourth(_) => {
-                right += 1;
-            }
-            Either5::Fifth(_) => {
-                down += 1;
-            }
-        }
+        let [[r, g, b], [dt, dm, db]] = state.data;
+        draw(&mut display, state.highlighted == 0, 64, 0, r);
+        draw(&mut display, state.highlighted == 1, 80, 0, g);
+        draw(&mut display, state.highlighted == 2, 96, 0, b);
+        draw(&mut display, state.highlighted == 3, 64, 15, dt);
+        draw(&mut display, state.highlighted == 4, 80, 15, dm);
+        draw(&mut display, state.highlighted == 5, 96, 15, db);
+        display.flush().unwrap();
     }
 }
