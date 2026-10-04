@@ -30,6 +30,9 @@ async fn main(spawner: Spawner) {
         12_000_000,
     )));
 
+    // before spawning anything, since this briefly takes over the flash
+    let unique_id = hardware::unique_id(peripherals.FLASH);
+
     spawner.spawn(led(Output::new(peripherals.PIN_25, gpio::Level::Low)).unwrap());
     info!("Hello World!");
 
@@ -114,11 +117,16 @@ async fn main(spawner: Spawner) {
     let mut led_colors = screens::LedColors::new();
     let mut text = screens::TextDisplay::new();
     let mut about = screens::About::new();
+    let mut status = screens::Status::new(
+        hardware::Battery::new(peripherals.ADC, peripherals.PIN_29),
+        unique_id,
+    );
     let mut bootloader = screens::Bootloader;
     let mut root = Menu::new([
         Item::new("Text", &mut text),
         Item::new("Colors", &mut led_colors),
         Item::new("About", &mut about),
+        Item::new("Status", &mut status),
         Item::new("Bootloader", &mut bootloader),
     ]);
 

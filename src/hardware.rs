@@ -1,6 +1,6 @@
 use embassy_futures::select::select_array;
 use embassy_rp::{
-    Peri,
+    Peri, adc, flash,
     gpio::{self, Input, Output},
     peripherals,
     spi::{self, Spi},
@@ -14,7 +14,7 @@ pub type DisplayClk = peripherals::PIN_2;
 pub type DisplayA0 = peripherals::PIN_5;
 pub type DisplayReset = peripherals::PIN_7;
 pub type DisplaySPI = peripherals::SPI0;
-
+pub type BatterySense = peripherals::PIN_29;
 pub type ButtonUp = peripherals::PIN_13;
 pub type ButtonLeft = peripherals::PIN_12;
 pub type ButtonCenter = peripherals::PIN_11;
@@ -151,4 +151,47 @@ impl Buttons {
             Button::Center,
         ][i]
     }
+}
+
+/// The 3xAAA battery voltage, read through a divider on [`BatterySense`].
+pub struct Battery {
+    adc: adc::Adc<'static, adc::Blocking>,
+    channel: adc::Channel<'static>,
+}
+
+impl Battery {
+    /// battery voltage / voltage at the pin
+    const DIVIDER: u32 = 3;
+    /// The ADC's reference, which is the 3.3V rail.
+    const REFERENCE_MILLIVOLTS: u32 = 3300;
+    /// Readings averaged together, to smooth out noise.
+    const SAMPLES: u32 = 16;
+
+    pub fn new(adc: Peri<'static, peripherals::ADC>, pin: Peri<'static, BatterySense>) -> Self {
+        Self {
+            adc: adc::Adc::new_blocking(adc, adc::Config::default()),
+            channel: adc::Channel::new_pin(pin, gpio::Pull::None),
+        }
+    }
+
+    pub fn millivolts(&mut self) -> u32 {
+        let total: u32 = (0..Self::SAMPLES)
+            .map(|_| u32::from(self.adc.blocking_read(&mut self.channel).unwrap()))
+            .sum();
+        // 12-bit readings, so full scale is 4096
+        total * Self::REFERENCE_MILLIVOLTS * Self::DIVIDER / (4096 * Self::SAMPLES)
+    }
+}
+
+/// The RP2040 has no unique ID of its own, so use the flash chip's 64-bit one, as the Pico SDK's
+/// `pico_unique_board_id` does.
+///
+/// This briefly runs from RAM with interrupts off and flash unavailable, so call it before
+/// anything else is running.
+pub fn unique_id(flash: Peri<'static, peripherals::FLASH>) -> u64 {
+    // the size only matters for reads and writes, not for the ID
+    let mut flash = flash::Flash::<_, flash::Blocking, { 2 * 1024 * 1024 }>::new_blocking(flash);
+    let mut id = [0; 8];
+    flash.blocking_unique_id(&mut id).unwrap();
+    u64::from_be_bytes(id)
 }
