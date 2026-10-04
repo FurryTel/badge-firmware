@@ -1,3 +1,4 @@
+use embassy_futures::select::select_array;
 use embassy_rp::{
     Peri,
     gpio::{self, Input, Output},
@@ -19,6 +20,9 @@ pub type ButtonLeft = peripherals::PIN_12;
 pub type ButtonCenter = peripherals::PIN_11;
 pub type ButtonRight = peripherals::PIN_10;
 pub type ButtonDown = peripherals::PIN_9;
+
+pub const DISPLAY_WIDTH: u32 = 128;
+pub const DISPLAY_HEIGHT: u32 = 32;
 
 pub struct BadgeDisplay;
 
@@ -124,5 +128,27 @@ impl Buttons {
             right: crate::debounce::Button::new(Input::new(right, gpio::Pull::Up)),
             down: crate::debounce::Button::new(Input::new(down, gpio::Pull::Up)),
         }
+    }
+}
+
+impl Buttons {
+    /// Wait for any button to be pressed.
+    pub async fn next_press(&mut self) -> crate::ui::Button {
+        use crate::ui::Button;
+        let (_, i) = select_array([
+            self.up.wait_for_pressed(),
+            self.down.wait_for_pressed(),
+            self.left.wait_for_pressed(),
+            self.right.wait_for_pressed(),
+            self.center.wait_for_pressed(),
+        ])
+        .await;
+        [
+            Button::Up,
+            Button::Down,
+            Button::Left,
+            Button::Right,
+            Button::Center,
+        ][i]
     }
 }
