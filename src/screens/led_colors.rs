@@ -68,7 +68,7 @@ impl LedColors {
     pub fn new() -> Self {
         let mut this = Self {
             rainbow: true,
-            backlight_values: Default::default(),
+            backlight_values: [Value { value: 0x88 }; 3],
             blink: true,
             led_values: Default::default(),
             highlighted: 0,
