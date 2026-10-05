@@ -63,7 +63,7 @@ impl LedColors {
     /// x of each value column, packed in to fit after the mode field on a 128px screen
     const VALUE_X: [i32; 3] = [87, 101, 115];
     const ROW_Y: [i32; 2] = [0, 15];
-    const HELP: &str = "</> sel, ^/v edit, o quit";
+    const HELP: &str = "◀ ▶ select, ▲ ▼ change, ● exit";
 
     pub fn new() -> Self {
         let mut this = Self {

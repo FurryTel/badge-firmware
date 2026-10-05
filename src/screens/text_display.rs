@@ -188,7 +188,7 @@ impl Screen for TextDisplay {
         let text = self.input.value();
         if text.is_empty() {
             Text::with_text_style(
-                "o to edit, < to exit",
+                "● to edit, ◀ to exit",
                 Point::zero(),
                 ui::TEXT,
                 ui::TOP_LEFT,

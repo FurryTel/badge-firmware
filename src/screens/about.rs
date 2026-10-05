@@ -10,9 +10,9 @@ use crate::ui::{self, Button, Canvas, Response, Screen};
 /// Three lines per page, which is all that fits in [`ui::FONT`].
 const PAGES: &[[&str; 3]] = &[
     [
-        "Use these     ^  ", 
-        "buttons to  < o >", 
-        "navigate!     v  "
+        "Use these     ▲  ",
+        "buttons to  ◀ ● ▶",
+        "navigate!     ▼  "
     ],
     [
         "FurryTel badge",

@@ -2,6 +2,7 @@
 //! press.  Screens compose (see [`menu::Menu`]), so the whole UI is a single root screen that
 //! [`run`] drives.  Screens that animate ask for periodic [`Screen::tick`]s.
 
+pub mod glyphs;
 pub mod menu;
 pub mod text_input;
 
@@ -15,6 +16,7 @@ use embedded_graphics::{
 };
 
 use crate::hardware::Buttons;
+use glyphs::GlyphTextStyle;
 
 /// What screens draw on.  This is the concrete display type rather than a generic
 /// `embedded_graphics::DrawTarget`, which keeps [`Screen`] usable as a trait object.
@@ -96,25 +98,35 @@ fn redraw(canvas: &mut Canvas, screen: &dyn Screen) {
 
 pub const FONT: &mono_font::MonoFont = &mono_font::ascii::FONT_6X10;
 
+// All the text styles can draw the button glyphs in `glyphs::GLYPHS`, e.g. "● to edit".
+
 /// Light text on a dark background.
-pub const TEXT: MonoTextStyle<'static, BinaryColor> = MonoTextStyle::new(FONT, BinaryColor::On);
+pub const TEXT: GlyphTextStyle =
+    GlyphTextStyle::new(MonoTextStyle::new(FONT, BinaryColor::On), &glyphs::FONT);
 /// Dark text, for drawing on top of a highlight.
-pub const TEXT_INVERTED: MonoTextStyle<'static, BinaryColor> =
-    MonoTextStyle::new(FONT, BinaryColor::Off);
+pub const TEXT_INVERTED: GlyphTextStyle =
+    GlyphTextStyle::new(MonoTextStyle::new(FONT, BinaryColor::Off), &glyphs::FONT);
 /// Dark text with its own light background, for highlighting a bit of text.
-pub const TEXT_HIGHLIGHTED: MonoTextStyle<'static, BinaryColor> = MonoTextStyleBuilder::new()
-    .font(FONT)
-    .text_color(BinaryColor::Off)
-    .background_color(BinaryColor::On)
-    .build();
+pub const TEXT_HIGHLIGHTED: GlyphTextStyle = GlyphTextStyle::new(
+    MonoTextStyleBuilder::new()
+        .font(FONT)
+        .text_color(BinaryColor::Off)
+        .background_color(BinaryColor::On)
+        .build(),
+    &glyphs::FONT,
+);
 
 /// For when [`FONT`] is too big, e.g. the on-screen keyboard.
 /// ISO 8859-1 rather than ASCII for a few extra symbols, like the keyboard's « and ».
 pub const SMALL_FONT: &mono_font::MonoFont = &mono_font::iso_8859_1::FONT_4X6;
-pub const SMALL_TEXT: MonoTextStyle<'static, BinaryColor> =
-    MonoTextStyle::new(SMALL_FONT, BinaryColor::On);
-pub const SMALL_TEXT_INVERTED: MonoTextStyle<'static, BinaryColor> =
-    MonoTextStyle::new(SMALL_FONT, BinaryColor::Off);
+pub const SMALL_TEXT: GlyphTextStyle = GlyphTextStyle::new(
+    MonoTextStyle::new(SMALL_FONT, BinaryColor::On),
+    &glyphs::SMALL_FONT,
+);
+pub const SMALL_TEXT_INVERTED: GlyphTextStyle = GlyphTextStyle::new(
+    MonoTextStyle::new(SMALL_FONT, BinaryColor::Off),
+    &glyphs::SMALL_FONT,
+);
 
 /// Position text by its top-left corner.
 pub const TOP_LEFT: TextStyle = TextStyleBuilder::new()

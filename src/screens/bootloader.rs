@@ -23,9 +23,9 @@ impl Bootloader {
 impl Screen for Bootloader {
     fn draw(&self, canvas: &mut Canvas) {
         let lines = [
-            "Press center button",
-            "to enter bootloader,",
-            "any other to exit.",
+            "Press ● to enter the",
+            "bootloader, any other",
+            "button to exit.",
         ];
         for (i, line) in lines.into_iter().enumerate() {
             let y = i as i32 * ui::FONT.character_size.height as i32;
